@@ -4,9 +4,6 @@
     "src/**/*.tsx",
     "src/**/*.ts"
   ],
-  "exclude": [
-    "src/**/demo/**"
-  ],
   "compilerOptions": {
     "rootDir": "./src",
     "outDir": "./dist",
@@ -14,17 +11,15 @@
     "sourceMap": true,
     "noImplicitAny": true,
     "allowSyntheticDefaultImports": true,
-    "moduleResolution": "node",
+    "downlevelIteration": true,
     "jsx": "react",
-    "target": "es2015",
+    "target": "es5",
     "lib": [
-      "es2015"
+      "es5"
     ],
-    "types": [
-      "react",
-      "react-native",
-      "expo",
-      "expo__vector-icons"
+    "typeRoots": [
+      "./node_modules/@types",
+      "./src/types"
     ]
   }
 }

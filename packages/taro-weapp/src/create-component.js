@@ -1,9 +1,10 @@
 import { getCurrentPageUrl } from '@tarojs/utils'
-
-import { isEmptyObject } from './util'
+import { commitAttachRef, detachAllRef } from '@tarojs/taro'
+import { isEmptyObject, isFunction } from './util'
 import { updateComponent } from './lifecycle'
 import { cacheDataSet, cacheDataGet, cacheDataHas } from './data-cache'
 import propsManager from './propsManager'
+import { Current } from './current-owner'
 
 const anonymousFnNamePreffix = 'funPrivate'
 const routerParamsPrivateKey = '__key_'
@@ -208,11 +209,7 @@ export function componentTrigger (component, key, args) {
           const query = wx.createSelectorQuery().in(component.$scope)
           target = query.select(`#${ref.id}`)
         }
-        if ('refName' in ref && ref['refName']) {
-          refs[ref.refName] = target
-        } else if ('fn' in ref && typeof ref['fn'] === 'function') {
-          ref['fn'].call(component, target)
-        }
+        commitAttachRef(ref, target, component, refs, true)
         ref.target = target
       })
       component.refs = Object.assign({}, component.refs || {}, refs)
@@ -240,10 +237,7 @@ export function componentTrigger (component, key, args) {
     component._pendingStates = []
     component._pendingCallbacks = []
     // refs
-    if (component['$$refs'] && component['$$refs'].length > 0) {
-      component['$$refs'].forEach(ref => typeof ref['fn'] === 'function' && ref['fn'].call(component, null))
-      component.refs = {}
-    }
+    detachAllRef(component)
   }
 }
 
@@ -275,6 +269,8 @@ function createComponent (ComponentClass, isPage) {
   const componentInstance = new ComponentClass(componentProps)
   componentInstance._constructor && componentInstance._constructor(componentProps)
   try {
+    Current.current = componentInstance
+    Current.index = 0
     componentInstance.state = componentInstance._createData() || componentInstance.state
   } catch (err) {
     if (isPage) {
@@ -334,7 +330,13 @@ function createComponent (ComponentClass, isPage) {
       }
     },
     detached () {
-      componentTrigger(this.$component, 'componentWillUnmount')
+      const component = this.$component
+      componentTrigger(component, 'componentWillUnmount')
+      component.hooks.forEach((hook) => {
+        if (isFunction(hook.cleanup)) {
+          hook.cleanup()
+        }
+      })
     }
   }
   if (isPage) {

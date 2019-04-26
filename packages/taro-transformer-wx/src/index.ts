@@ -4,7 +4,15 @@ import { prettyPrint } from 'html'
 import { transform as parse } from 'babel-core'
 import * as ts from 'typescript'
 import { Transformer } from './class'
-import { setting, findFirstIdentifierFromMemberExpression, isContainJSXElement, codeFrameError, isArrayMapCallExpression, getSuperClassCode } from './utils'
+import {
+  setting,
+  findFirstIdentifierFromMemberExpression,
+  isContainJSXElement,
+  codeFrameError,
+  isArrayMapCallExpression,
+  replaceJSXTextWithTextComponent,
+  getSuperClassCode
+} from './utils'
 import * as t from 'babel-types'
 import {
   DEFAULT_Component_SET,
@@ -20,6 +28,10 @@ import {
   GEL_ELEMENT_BY_ID,
   lessThanSignPlacehold,
   COMPONENTS_PACKAGE_NAME,
+  quickappComponentName,
+  setFnPrefix,
+  setLoopCallee,
+  setLoopState,
   PROPS_MANAGER,
   GEN_COMP_ID,
   GEN_LOOP_COMPID
@@ -158,9 +170,17 @@ interface TransformResult extends Result {
 export default function transform (options: Options): TransformResult {
   if (options.adapter) {
     setAdapter(options.adapter)
+    if (Adapter.type === Adapters.quickapp) {
+      DEFAULT_Component_SET.clear()
+      DEFAULT_Component_SET.add('div')
+      DEFAULT_Component_SET.add('Text')
+      setFnPrefix('prv-fn-')
+    }
   }
-  if (Adapter.type === Adapters.swan) {
+  if (Adapter.type === Adapters.swan || Adapter.type === Adapters.quickapp) {
     setLoopOriginal('privateOriginal')
+    setLoopCallee('anonymousCallee_')
+    setLoopState('loopState')
   }
   THIRD_PARTY_COMPONENTS.clear()
   const code = options.isTyped
@@ -201,6 +221,17 @@ export default function transform (options: Options): TransformResult {
   let renderMethod!: NodePath<t.ClassMethod>
   let isImportTaro = false
   traverse(ast, {
+    JSXText (path) {
+      if (Adapter.type !== Adapters.quickapp) {
+        return
+      }
+      const value = path.node.value
+      if (!value.trim()) {
+        return
+      }
+
+      replaceJSXTextWithTextComponent(path)
+    },
     TemplateLiteral (path) {
       const nodes: t.Expression[] = []
       const { quasis, expressions } = path.node
@@ -421,6 +452,9 @@ export default function transform (options: Options): TransformResult {
           }
         }
       }
+      if (name === 'View' && Adapter.type === Adapters.quickapp) {
+        path.node.name = t.jSXIdentifier('div')
+      }
       if (name === 'Provider') {
         const modules = path.scope.getAllBindings('module')
         const providerBinding = Object.values(modules).some((m: Binding) => m.identifier.name === 'Provider')
@@ -517,6 +551,18 @@ export default function transform (options: Options): TransformResult {
         importSources.add(source)
       }
       const names: string[] = []
+      if (source === COMPONENTS_PACKAGE_NAME && Adapters.quickapp === Adapter.type) {
+        path.node.specifiers.forEach((s) => {
+          if (t.isImportSpecifier(s)) {
+            const originalName = s.imported.name
+            if (quickappComponentName.has(originalName)) {
+              const importedName = `Taro${originalName}`
+              s.imported.name = importedName
+              s.local.name = importedName
+            }
+          }
+        })
+      }
       if (source === TARO_PACKAGE_NAME) {
         isImportTaro = true
         path.node.specifiers.push(

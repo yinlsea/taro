@@ -26,6 +26,7 @@
     "packages/taro-swan",
     "packages/taro-alipay",
     "packages/taro-tt",
+    "packages/taro-quickapp",
     "packages/taro-webpack-runner",
     "packages/postcss-plugin-constparse",
     "packages/eslint-config-taro",
@@ -43,13 +44,14 @@
     "packages/taro-with-weapp",
     "packages/taroize",
     "packages/stylelint-taro-rn",
-    "packages/stylelint-config-taro-rn"
+    "packages/stylelint-config-taro-rn",
+    "packages/taro-css-to-react-native"
   ],
   "command": {
     "publish": {
       "message": "chore(release): publish %s"
     }
   },
-  "version": "1.2.26",
+  "version": "1.2.27-beta.0",
   "npmClient": "npm"
 }

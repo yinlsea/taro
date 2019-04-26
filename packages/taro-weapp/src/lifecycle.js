@@ -1,21 +1,24 @@
 import {
   internal_safe_get as safeGet,
-  internal_safe_set as safeSet
+  internal_safe_set as safeSet,
+  commitAttachRef
 } from '@tarojs/taro'
-import PropTypes from 'prop-types'
+// import PropTypes from 'prop-types'
 import { componentTrigger } from './create-component'
 import { shakeFnFromObject, isEmptyObject, diffObjToPath } from './util'
+import { Current } from './current-owner'
+import { invokeEffects } from './hooks'
 
-const isDEV = typeof process === 'undefined' ||
-  !process.env ||
-  process.env.NODE_ENV !== 'production'
+// const isDEV = typeof process === 'undefined' ||
+//   !process.env ||
+//   process.env.NODE_ENV !== 'production'
 
 export function updateComponent (component) {
-  const { props, __propTypes } = component
-  if (isDEV && __propTypes) {
-    const componentName = component.constructor.name || component.constructor.toString().match(/^function\s*([^\s(]+)/)[1]
-    PropTypes.checkPropTypes(__propTypes, props, 'prop', componentName)
-  }
+  const { props } = component
+  // if (isDEV && __propTypes) {
+  //   const componentName = component.constructor.name || component.constructor.toString().match(/^function\s*([^\s(]+)/)[1]
+  //   PropTypes.checkPropTypes(__propTypes, props, 'prop', componentName)
+  // }
   const prevProps = component.prevProps || props
   component.props = prevProps
   if (component.__mounted && component._unsafeCallUpdate === true && component.componentWillReceiveProps) {
@@ -61,8 +64,16 @@ function doUpdate (component, prevProps, prevState) {
   let data = state || {}
   if (component._createData) {
     // 返回null或undefined则保持不变
-    const isRunLoopRef = !component.__mounted
-    data = component._createData(state, props, isRunLoopRef) || data
+    const runLoopRef = !component.__mounted
+    if (component.__isReady) {
+      Current.current = component
+      Current.index = 0
+      invokeEffects(component, true)
+    }
+    data = component._createData(state, props, runLoopRef) || data
+    if (component.__isReady) {
+      Current.current = null
+    }
   }
 
   data = Object.assign({}, props, data)
@@ -99,6 +110,7 @@ function doUpdate (component, prevProps, prevState) {
 
   const cb = function () {
     if (__mounted) {
+      invokeEffects(component)
       if (component['$$refs'] && component['$$refs'].length > 0) {
         component['$$refs'].forEach(ref => {
           // 只有 component 类型能做判断。因为 querySelector 每次调用都一定返回 nodeRefs，无法得知 dom 类型的挂载状态。
@@ -109,15 +121,16 @@ function doUpdate (component, prevProps, prevState) {
 
           const prevRef = ref.target
           if (target !== prevRef) {
-            if (ref.refName) component.refs[ref.refName] = target
-            typeof ref.fn === 'function' && ref.fn.call(component, target)
+            commitAttachRef(ref, target, component, component.refs)
             ref.target = target
           }
         })
       }
 
       if (component['$$hasLoopRef']) {
+        component._disableEffect = true
         component._createData(component.state, component.props, true)
+        component._disableEffect = false
       }
 
       if (typeof component.componentDidUpdate === 'function') {

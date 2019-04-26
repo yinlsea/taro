@@ -62,7 +62,8 @@ export function parseScript (
           returned || t.nullLiteral(),
           json,
           componentType,
-          refId
+          refId,
+          wxses
         )
         if (componentType !== 'App' && classDecl.decorators!.length === 0) {
           classDecl.decorators = [buildDecorator(componentType)]
@@ -110,7 +111,8 @@ function parsePage (
   returned: t.Expression,
   json?: t.ObjectExpression,
   componentType?: string,
-  refId?: Set<string>
+  refId?: Set<string>,
+  wxses?: WXS[]
 ) {
   const stateKeys: string[] = []
   let weappConf: string | null = null
@@ -185,7 +187,7 @@ function parsePage (
     classBody = properties.map(prop => {
       const key = prop.get('key')
       const value = prop.get('value')
-      const params = prop.isObjectMethod()
+      let params = prop.isObjectMethod()
         ? prop.node.params
         : value.isFunctionExpression() || value.isArrowFunctionExpression()
           ? value.node.params
@@ -303,6 +305,15 @@ function parsePage (
       }
       if (PageLifecycle.has(name)) {
         const lifecycle = PageLifecycle.get(name)!
+        if (name === 'onLoad' && t.isIdentifier(params[0])) {
+          params = [t.assignmentPattern(params[0] as t.Identifier, t.logicalExpression('||', t.memberExpression(
+            t.memberExpression(
+              t.thisExpression(),
+              t.identifier('$router')
+            ),
+            t.identifier('params')
+          ), t.objectExpression([])))]
+        }
         if (prop.isObjectMethod()) {
           const body = prop.get('body')
           return t.classMethod('method', t.identifier(lifecycle), params, body.node)
@@ -409,7 +420,9 @@ function parsePage (
     }
   }
 
-  const renderFunc = buildRender(returned, stateKeys, propsKeys)
+  const wxsNames = new Set(wxses ? wxses.map(w => w.module) : [])
+
+  const renderFunc = buildRender(returned, stateKeys.filter(s => !wxsNames.has(s)), propsKeys)
 
   const classDecl = t.classDeclaration(
     t.identifier(componentType === 'App' ? 'App' : defaultClassName),

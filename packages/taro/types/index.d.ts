@@ -1,3 +1,4 @@
+import { JSX } from 'babel-types'
 export = Taro;
 export as namespace Taro;
 
@@ -7819,13 +7820,6 @@ declare namespace Taro {
        */
       complete?: Param0PropComplete
     }
-
-    type Promised = {
-      /** errMsg */
-      errMsg: string
-      /** 生成文件的临时路径 */
-      tempFilePath: string
-    }
     /**
      * 接口调用成功的回调函数
      */
@@ -7864,7 +7858,7 @@ declare namespace Taro {
    *     ```
    * @see https://developers.weixin.qq.com/miniprogram/dev/api/canvas/temp-file.html#wxcanvastotempfilepathobject-this
    */
-  function canvasToTempFilePath(OBJECT: canvasToTempFilePath.Param0, instance?: any): Promise<canvasToTempFilePath.Promised>
+  function canvasToTempFilePath(OBJECT: canvasToTempFilePath.Param0, instance?: any): void
 
   namespace canvasGetImageData {
     type Promised = {
